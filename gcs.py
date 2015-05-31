@@ -31,7 +31,7 @@ class GcsFileSystem(luigi.target.FileSystem):
         self.gcs_service = discovery.build('storage', 'v1', credentials=credentials)
 
     def isdir(self, path):
-        (bucket, key) = GcsFileSystem._path_to_bucket_and_key(path)
+        (bucket, key) = GcsFileSystem.path_to_bucket_and_key(path)
 
         if GcsFileSystem._is_root(key):
             return True
@@ -57,7 +57,7 @@ class GcsFileSystem(luigi.target.FileSystem):
         pass
 
     def exists(self, path):
-        (bucket, key) = GcsFileSystem._path_to_bucket_and_key(path)
+        (bucket, key) = GcsFileSystem.path_to_bucket_and_key(path)
 
         gcs_object = GcsFileSystem._get_object(self.gcs_service, bucket, key, GcsFileSystem.logger)
 
@@ -89,7 +89,7 @@ class GcsFileSystem(luigi.target.FileSystem):
         if not self.exists(path):
             return False
 
-        (bucket, key) = self._path_to_bucket_and_key(path)
+        (bucket, key) = self.path_to_bucket_and_key(path)
 
         if self._is_root(key):
             raise FileSystemException("Can't remove root of the bucket {}".format(bucket))
@@ -112,7 +112,7 @@ class GcsFileSystem(luigi.target.FileSystem):
             raise FileSystemException("Can't remove dir {} without recursive flag".format(key))
 
     @staticmethod
-    def _path_to_bucket_and_key(path):
+    def path_to_bucket_and_key(path):
         (scheme, netloc, path, query, fragment) = urlsplit(path)
         path_without_initial_slash = path[1:]
         return netloc, path_without_initial_slash
@@ -121,7 +121,7 @@ class GcsFileSystem(luigi.target.FileSystem):
         """
         Put an object stored locally to an GCS path.
         """
-        (bucket, key) = GcsFileSystem._path_to_bucket_and_key(destination_gcs_path)
+        (bucket, key) = GcsFileSystem.path_to_bucket_and_key(destination_gcs_path)
 
         self.gcs_service.objects().insert(media_body=local_path, name=key, bucket=bucket).execute()
         return bucket, key
@@ -149,7 +149,7 @@ class GcsFileSystem(luigi.target.FileSystem):
 
         chunk_size = GcsFileSystem.correct_chunk_size(chunk_size)
 
-        (bucket, key) = self._path_to_bucket_and_key(destination_gcs_path)
+        (bucket, key) = self.path_to_bucket_and_key(destination_gcs_path)
 
         media = MediaFileUpload(local_path, chunksize=chunk_size, resumable=True)
 
@@ -180,3 +180,32 @@ class GcsFileSystem(luigi.target.FileSystem):
             return (chunk_size / GcsFileSystem.MIN_CHUNK_SIZE + 1) * GcsFileSystem.MIN_CHUNK_SIZE
         else:
             return chunk_size
+
+    def read(self, name):
+        bucket, key = self.path_to_bucket_and_key(name)
+        return self.gcs_service.objects().get_media(bucket=bucket, object=key).execute()
+
+    def open(self, name):
+        return ReadableGcsFile(name, self)
+
+
+class ReadableGcsFile:
+    def __init__(self, name, fs):
+        self.fs = fs
+        self.name = name
+
+    def readable(self):
+        return True
+
+    def writable(self):
+        return False
+
+    def seekable(self):
+        return False
+
+    def __enter__(self):
+        return self
+
+    def __iter__(self):
+        for line in self.fs.read(self.name).splitlines(True):
+            yield line
