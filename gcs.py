@@ -1,13 +1,25 @@
 import os
-from urlparse import urlsplit
+import logging
+import random
+import tempfile
+
 from googleapiclient import discovery
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
 import luigi.target
-from luigi.target import FileSystemException
 from oauth2client.client import SignedJwtAssertionCredentials
-import logging
 from retrying import retry
+import sys
+import yaml
+from yaml import Loader
+
+try:
+    from urlparse import urlsplit
+except ImportError:
+    from urllib.parse import urlsplit
+
+from luigi.format import get_default_format, MixedUnicodeBytes
+from luigi.target import FileSystemException, FileSystemTarget, AtomicLocalFile
 
 
 class GcsFileSystem(luigi.target.FileSystem):
@@ -17,9 +29,18 @@ class GcsFileSystem(luigi.target.FileSystem):
 
     def __init__(self, secret_key=None, email=None, private_key_password=None, conf=None):
 
+        try:
+            conf = conf or yaml.load(file('/etc/gaw/gcs.yaml'), Loader=Loader)
+        except:
+            GcsFileSystem.logger.warn("No config provided")
         secret_key = secret_key or conf['auth']['root']['cert']
         email = email or conf['auth']['root']['email']
-        private_key_password = private_key_password or conf['auth']['root']['password']
+        private_key_password = (private_key_password or conf['auth']['root']['password']) or "notasecret"
+
+        if not secret_key or not email:
+            GcsFileSystem.logger.error(
+                "GCS user email and secret key must be provided either in config or in parameters")
+            raise Exception("GCS user email and secret key must be provided either in config or in parameters")
 
         with open(secret_key) as f:
             private_key = f.read()
@@ -185,8 +206,30 @@ class GcsFileSystem(luigi.target.FileSystem):
         bucket, key = self.path_to_bucket_and_key(name)
         return self.gcs_service.objects().get_media(bucket=bucket, object=key).execute()
 
-    def open(self, name):
+    def open_read(self, name):
         return ReadableGcsFile(name, self)
+
+    def open_write(self, name):
+        return AtomicGcsFile(name)
+
+
+class AtomicGcsFile(AtomicLocalFile):
+    """
+    An GCS file that writes to a temp file and put to S3 on close.
+    """
+
+    def __init__(self, path, fs):
+        self.fs = fs
+        super(AtomicGcsFile, self).__init__(path)
+
+    def move_to_final_destination(self):
+        self.fs.put_multipart(self.tmp_path, self.path)
+
+    def generate_tmp_path(self, path):
+        fileName, fileExtension = os.path.splitext(path)
+        return os.path.join(tempfile.gettempdir(), 'luigi-gcs-tmp-%09d.%s' % (random.randrange(0, 1e10), fileExtension))
+
+
 
 
 class ReadableGcsFile:
@@ -209,3 +252,37 @@ class ReadableGcsFile:
     def __iter__(self):
         for line in self.fs.read(self.name).splitlines(True):
             yield line
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return self
+
+
+class GcsTarget(FileSystemTarget):
+    fs = None
+
+    def __init__(self, path, format=None, gcs_filesystem=None):
+        super(GcsTarget, self).__init__(path)
+        if format is None:
+            format = get_default_format()
+
+        # Allow to write unicode in file for retrocompatibility
+        if sys.version_info[:2] <= (2, 6):
+            format = format >> MixedUnicodeBytes
+
+        self.format = format
+        self.fs = gcs_filesystem or GcsFileSystem()
+
+    def open(self, mode='r'):
+        """
+        """
+        if mode not in ('r', 'w'):
+            raise ValueError("Unsupported open mode '%s'" % mode)
+
+        if mode == 'r':
+            if not self.fs.exists(self.path):
+                raise FileSystemException("Could not find file at %s" % self.path)
+
+            fileobj = self.fs.open_read(self.path)
+            return self.format.pipe_reader(fileobj)
+        else:
+            return self.format.pipe_writer(AtomicGcsFile(self.path, self.fs))

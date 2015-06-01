@@ -2,7 +2,6 @@ import unittest
 from gcs import GcsFileSystem
 from yaml import Loader
 import yaml
-
 import logging
 
 
@@ -72,7 +71,7 @@ class GcsFileSystemTest(unittest.TestCase):
         original = open('./data/picture.jpg', 'rU').readlines()
         idx = 0
 
-        downloaded = fs.open(file_element)
+        downloaded = fs.open_read(file_element)
 
         for line in downloaded:
             self.assertEqual(
