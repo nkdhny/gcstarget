@@ -24,6 +24,8 @@ class GcsFileSystemTest(unittest.TestCase):
 
     def test_it_should_put_file_as_a_single_chunk_and_then_remove_it(self):
         file_element = "gcs://{}/test/sample_upload".format(GcsFileSystemTest.conf['gcs']['bucket'])
+        dir_element = "gcs://{}/test".format(GcsFileSystemTest.conf['gcs']['bucket'])
+
         fs = GcsFileSystem(conf=GcsFileSystemTest.conf)
 
         self.assertFalse(fs.exists(file_element))
@@ -31,6 +33,7 @@ class GcsFileSystemTest(unittest.TestCase):
         self.assertEqual(fs.put('./data/sample.txt', file_element),
                          (GcsFileSystemTest.conf['gcs']['bucket'], 'test/sample_upload'))
         self.assertTrue(fs.exists(file_element))
+        self.assertTrue(fs.exists(dir_element))
 
         fs.remove(file_element)
         self.assertFalse(fs.exists(file_element))
@@ -50,14 +53,10 @@ class GcsFileSystemTest(unittest.TestCase):
     def test_it_should_find_files(self):
         # ensure you have /test/sample.txt file at your bucket
         not_found = "gcs://{}/some/hopefully/not/existing/key".format(GcsFileSystemTest.conf['gcs']['bucket'])
-        file_element = "gcs://{}/test/sample".format(GcsFileSystemTest.conf['gcs']['bucket'])
-        dir_element = "gcs://{}/test".format(GcsFileSystemTest.conf['gcs']['bucket'])
         root = "gcs://{}".format(GcsFileSystemTest.conf['gcs']['bucket'])
 
         fs = GcsFileSystem(conf=GcsFileSystemTest.conf)
         self.assertFalse(fs.exists(not_found))
-        self.assertTrue(fs.exists(file_element))
-        self.assertTrue(fs.exists(dir_element))
         self.assertTrue(fs.exists(root))
 
     def test_it_should_download_file(self):
@@ -84,3 +83,30 @@ class GcsFileSystemTest(unittest.TestCase):
 
         fs.remove(file_element)
         self.assertFalse(fs.exists(file_element))
+
+    def test_it_should_delete_recursively(self):
+        file_element = "gcs://{}/test-remove/sample_upload".format(GcsFileSystemTest.conf['gcs']['bucket'])
+        other_file_element = "gcs://{}/test-remove/other_sample_upload".format(GcsFileSystemTest.conf['gcs']['bucket'])
+        dir_element = "gcs://{}/test-remove".format(GcsFileSystemTest.conf['gcs']['bucket'])
+
+        fs = GcsFileSystem(conf=GcsFileSystemTest.conf)
+
+        self.assertFalse(fs.exists(file_element))
+        self.assertFalse(fs.exists(other_file_element))
+        self.assertFalse(fs.exists(dir_element))
+
+        self.assertEqual(fs.put('./data/sample.txt', file_element),
+                         (GcsFileSystemTest.conf['gcs']['bucket'], 'test-remove/sample_upload'))
+
+        self.assertEqual(fs.put('./data/sample.txt', other_file_element),
+                         (GcsFileSystemTest.conf['gcs']['bucket'], 'test-remove/other_sample_upload'))
+
+        self.assertTrue(fs.exists(file_element))
+        self.assertTrue(fs.exists(other_file_element))
+        self.assertTrue(fs.exists(dir_element))
+
+        fs.remove(dir_element)
+        self.assertFalse(fs.exists(file_element))
+        self.assertFalse(fs.exists(other_file_element))
+        self.assertFalse(fs.exists(dir_element))
+

@@ -100,7 +100,7 @@ class GcsFileSystem(luigi.target.FileSystem):
             self.gcs_service.objects().delete(bucket=bucket, object=key).execute()
             return True
 
-        elif recursive and self.isdir(key):
+        elif recursive and self.isdir(path):
             gcs_objects = self.gcs_service.objects().list(bucket=bucket,
                                                           prefix=GcsFileSystem._add_path_delimiter(key)).execute()
             for gcs_object in gcs_objects['items']:
