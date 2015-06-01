@@ -4,7 +4,7 @@ import random
 import tempfile
 
 from googleapiclient import discovery
-from googleapiclient.errors import HttpError
+from googleapiclient.errors import HttpError, UnknownFileType
 from googleapiclient.http import MediaFileUpload
 import luigi.target
 from oauth2client.client import SignedJwtAssertionCredentials
@@ -30,7 +30,7 @@ class GcsFileSystem(luigi.target.FileSystem):
     def __init__(self, secret_key=None, email=None, private_key_password=None, conf=None):
 
         try:
-            conf = conf or yaml.load(file('/etc/gaw/luigicontrib.yaml'), Loader=Loader)
+            conf = conf or yaml.load(file('/etc/gaw/gcs.yaml'), Loader=Loader)
         except:
             GcsFileSystem.logger.warn("No config provided")
         secret_key = secret_key or conf['auth']['root']['cert']
@@ -144,10 +144,13 @@ class GcsFileSystem(luigi.target.FileSystem):
         """
         (bucket, key) = GcsFileSystem.path_to_bucket_and_key(destination_gcs_path)
 
-        self.gcs_service.objects().insert(media_body=local_path, name=key, bucket=bucket).execute()
+        try:
+            self.gcs_service.objects().insert(media_body=local_path, name=key, bucket=bucket).execute()
+        except UnknownFileType:
+            self.put_multipart(local_path, destination_gcs_path, fallback_to_simple_put=False)
         return bucket, key
 
-    def put_multipart(self, local_path, destination_gcs_path, chunk_size=67108864):
+    def put_multipart(self, local_path, destination_gcs_path, chunk_size=67108864, fallback_to_simple_put=True):
         """
         Put an object stored locally to an GCS path
         using using MediaFileUpload chunks(for files > 5GB,
@@ -164,7 +167,7 @@ class GcsFileSystem(luigi.target.FileSystem):
 
         source_size = os.stat(local_path).st_size
 
-        if source_size <= chunk_size or source_size < GcsFileSystem.MIN_CHUNK_SIZE:
+        if fallback_to_simple_put and source_size <= chunk_size or source_size < GcsFileSystem.MIN_CHUNK_SIZE:
             GcsFileSystem.logger.debug("File too small will upload as a single chunk")
             return self.put(local_path, destination_gcs_path)
 
@@ -173,6 +176,10 @@ class GcsFileSystem(luigi.target.FileSystem):
         (bucket, key) = self.path_to_bucket_and_key(destination_gcs_path)
 
         media = MediaFileUpload(local_path, chunksize=chunk_size, resumable=True)
+
+        if media.mimetype() is None:
+            media = MediaFileUpload(local_path, chunksize=chunk_size, resumable=True,
+                                    mimetype='application/octet-stream')
 
         request = self.gcs_service.objects().insert(media_body=media, name=key, bucket=bucket)
 
@@ -227,9 +234,8 @@ class AtomicGcsFile(AtomicLocalFile):
 
     def generate_tmp_path(self, path):
         fileName, fileExtension = os.path.splitext(path)
-        return os.path.join(tempfile.gettempdir(), 'luigi-luigicontrib-tmp-%09d.%s' % (random.randrange(0, 1e10), fileExtension))
-
-
+        return os.path.join(tempfile.gettempdir(),
+                            'luigi-gcs-tmp-%09d.%s' % (random.randrange(0, 1e10), fileExtension))
 
 
 class ReadableGcsFile:

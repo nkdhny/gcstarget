@@ -8,7 +8,7 @@ from luigicontrib.gcs import GcsFileSystem, GcsTarget
 
 
 class GcsTargetTest(unittest.TestCase):
-    conf = yaml.load(file('./conf/luigicontrib.yaml'), Loader=Loader)
+    conf = yaml.load(file('./conf/gcs.yaml'), Loader=Loader)
 
     logging.basicConfig(level=logging.DEBUG,
                         format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
@@ -16,7 +16,7 @@ class GcsTargetTest(unittest.TestCase):
 
     def test_it_should_perform_read_write_operations(self):
         fs = GcsFileSystem(conf=GcsTargetTest.conf)
-        file_element = "luigicontrib://{}/test/target.txt".format(GcsTargetTest.conf['luigicontrib']['bucket'])
+        file_element = "gcs://{}/test/target.txt".format(GcsTargetTest.conf['gcs']['bucket'])
 
         self.assertFalse(fs.exists(file_element))
 
