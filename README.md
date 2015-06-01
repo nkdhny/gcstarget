@@ -22,7 +22,10 @@ target = GcsTarget(path, gcs_filesystem=conf)
 will create target with gcs conf provided by dictionary `dict_conf`
 
 ```python
-fs = GcsFileSystem(secret_key=gcs_secret_key_file_path, email=gcs_email, private_key_password=optional_password)
+fs = GcsFileSystem(
+  secret_key=gcs_secret_key_file_path, 
+  email=gcs_email, 
+  private_key_password=optional_password)
 target = GcsTarget(path, gcs_filesystem=conf)
 ```
 will create target that uses GCS account `gcs_email` identified by secret key stored in a file located 
