@@ -167,7 +167,7 @@ class GcsFileSystem(luigi.target.FileSystem):
 
         source_size = os.stat(local_path).st_size
 
-        if fallback_to_simple_put and source_size <= chunk_size or source_size < GcsFileSystem.MIN_CHUNK_SIZE:
+        if fallback_to_simple_put and (source_size <= chunk_size or source_size < GcsFileSystem.MIN_CHUNK_SIZE):
             GcsFileSystem.logger.debug("File too small will upload as a single chunk")
             return self.put(local_path, destination_gcs_path)
 
