@@ -30,12 +30,12 @@ class GcsFileSystem(luigi.target.FileSystem):
     def __init__(self, secret_key=None, email=None, private_key_password=None, conf=None):
 
         try:
-            conf = conf or yaml.load(file('/etc/gaw/gcs.yaml'), Loader=Loader)
+            conf = conf or yaml.load(file('/etc/gaw/gapi.yaml'), Loader=Loader)
         except:
             GcsFileSystem.logger.warn("No config provided")
-        secret_key = secret_key or conf['auth']['root']['cert']
-        email = email or conf['auth']['root']['email']
-        private_key_password = (private_key_password or conf['auth']['root']['password']) or "notasecret"
+        secret_key = secret_key or conf['gapi']['auth']['cert']
+        email = email or conf['gapi']['auth']['email']
+        private_key_password = (private_key_password or conf['gapi']['auth']['password']) or "notasecret"
 
         if not secret_key or not email:
             GcsFileSystem.logger.error(
