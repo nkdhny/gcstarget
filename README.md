@@ -13,7 +13,7 @@ replaced with GCS calls. It has only two major differences:
 ```python
 target = GcsTarget(path)
 ``` 
-will create target with GCS account details loaded from default config file (`/etc/gaw/gcs.yaml`)
+will create target with GCS account details loaded from default config file (`/etc/gaw/gapi.yaml`)
 
 ```python
 fs = GcsFileSystem(conf=dict_conf)
@@ -36,8 +36,8 @@ at `gcs_secret_key_file_path` with password `optional_password` (which is "notas
 Here is sample YAML file with all required and optional configuration options
 
 ```yaml
-auth:
-  root:
+gapi:
+  auth:
     cert: './conf/privatekey.pem'
     password: 'notasecret'
     email: 'app-id@developer.gserviceaccount.com'
