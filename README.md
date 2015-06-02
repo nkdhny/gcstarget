@@ -6,7 +6,7 @@ Mostly copy and paste of the [S3Target](https://github.com/spotify/luigi/blob/ma
 replaced with GCS calls. It has only two major differences: 
 
 * AFAIK we can't make resumable downloads in GCS
-* for uploads file extention is required to make it possible to guess file mime type
+* ~~for uploads file extention is required to make it possible to guess file mime type~~ Without extension file will be treated as binary file
 
 # How to use
 
