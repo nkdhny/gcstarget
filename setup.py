@@ -7,4 +7,5 @@ setup(name='GcsTarget',
       author_email='golomedov@gmail.com',
       url='https://github.com/nkdhny/gcstarget',
       packages=['luigicontrib'],
+      install_requires=['pyyaml', 'oauth2client', 'google-api-python-client', 'retrying', 'luigi']
       )
